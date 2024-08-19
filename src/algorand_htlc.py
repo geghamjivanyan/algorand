@@ -121,7 +121,7 @@ class AlgorandHTLC(Algorand):
         """
 
         res = teal_manager.compile_teal_file(
-                TealManager.lock(
+                TealManager.lock_contract(
                     receiver["address"],
                     timelock,
                     hash_of_secret
@@ -139,8 +139,7 @@ class AlgorandHTLC(Algorand):
                 sender["address"],
                 receiver["address"],
                 amount,
-                approval_teal,
-                clear_teal
+                ''
             )
         signed_txn = self.sign_transaction(sender["pk"], txn)
         tx_id = self.send_transaction(signed_txn)

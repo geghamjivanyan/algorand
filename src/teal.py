@@ -142,7 +142,7 @@ class TealManager:
         )
 
         after_lock_time = Txn.first_valid() > Int(lock_time)
-        correct_secret_provided = Sha256(Arg(0)) == Bytes(hash_of_secret)
+        correct_secret_provided = Sha256(Txn.application_args[0]) == Bytes(hash_of_secret)
 
         return And(
             is_payment_to_receiver,

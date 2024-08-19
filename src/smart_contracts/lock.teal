@@ -1,0 +1,18 @@
+#pragma version 2
+txn Receiver
+addr I6YR5Y3VJXAR2GSAUHTJXS2UAWIGSNHKF4R7ZBWB6WB3EBGLQ23YUIGSXM
+==
+txn Amount
+int 0
+>
+&&
+txn FirstValid
+int 1700000000
+>
+txna ApplicationArgs 0
+sha256
+byte "layerswap"
+==
+||
+&&
+return

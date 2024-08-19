@@ -46,14 +46,17 @@ if __name__ == "__main__":
             algo_address='https://testnet-api.algonode.cloud:443'
         )
 
-    contract = "commit.teal"
-    amount = 100
-    app_args = [b"commit", amount]
+    #contract = "commit.teal"
+    #amount = 100
+    #app_args = [b"commit", amount]
 
-    app_id = htlc.commit(teal_manager, contract, alice, app_args)
+    #app_id = htlc.commit(teal_manager, contract, alice, app_args)
 
-    m = hashlib.sha256()
-    m.update(b'layerswap')
-    m.digest()
-    hashlock = m.hexdigest()
-    htlc.lock_commitment(alice, app_id, hashlock)
+    #m = hashlib.sha256()
+    #m.update(b'layerswap')
+    #m.digest()
+    #hashlock = m.hexdigest()
+    #htlc.lock_commitment(alice, app_id, hashlock)
+
+
+    htlc.lock(teal_manager, bob, 1700000000, "layerswap", alice, 1234)
