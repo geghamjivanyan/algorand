@@ -1,0 +1,50 @@
+#pragma version 2
+txn ApplicationID
+int 0
+==
+bnz main_l10
+txna ApplicationArgs 0
+byte "commit"
+==
+bnz main_l7
+txna ApplicationArgs 0
+byte "lock"
+==
+bnz main_l4
+err
+main_l4:
+byte "user"
+app_global_get
+txn Sender
+==
+bnz main_l6
+err
+main_l6:
+byte "hashlock"
+txna ApplicationArgs 1
+app_global_put
+int 1
+return
+main_l7:
+byte "committed_amount"
+app_global_get
+int 0
+==
+bnz main_l9
+err
+main_l9:
+byte "committed_amount"
+txna ApplicationArgs 1
+btoi
+app_global_put
+byte "lock_timestamp"
+txn LastValid
+app_global_put
+byte "user"
+txn Sender
+app_global_put
+int 1
+return
+main_l10:
+int 1
+return
