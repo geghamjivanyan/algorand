@@ -3,6 +3,7 @@ import base64
 
 #
 from typing import Optional
+from dataclasses import dataclass
 
 #
 from algosdk import account, mnemonic, transaction, logic
@@ -12,14 +13,24 @@ from algosdk.transaction import ApplicationCreateTxn, ApplicationCallTxn
 
 
 #
+@dataclass
+class AlgoUser:
+    pk: str
+    address: int
+    mnemonic: float
+
+    def __str__(self):
+        return "Private Key - {}\nAddress - {}\nMnemonic - {}".format(self.pk, self.address, self.mnemonic)
+
+#
 class Algorand:
     """
     Algorand object for interacting with algosdk
     """
 
     # global and local schema parameters
-    GLOBAL_SCHEMA = transaction.StateSchema(num_uints=2, num_byte_slices=2)
-    LOCAL_SCHEMA = transaction.StateSchema(num_uints=2, num_byte_slices=2)
+    GLOBAL_SCHEMA = transaction.StateSchema(num_uints=4, num_byte_slices=4)
+    LOCAL_SCHEMA = transaction.StateSchema(num_uints=4, num_byte_slices=4)
 
     #
     def __init__(self, algo_token: str, algo_address: str) -> None:
@@ -105,7 +116,7 @@ class Algorand:
 
         :returns: amount balance
         """
-        return self.client.account_info(address).get("amount")
+        return self.client.account_info(address)#.get("amount")
 
     #
     def get_transaction_info(self, tx_id: str):
@@ -128,7 +139,7 @@ class Algorand:
         private_key, address = account.generate_account()
         mnem = mnemonic.from_private_key(private_key)
 
-        return {"pk": private_key, "address": address, "mnemonic": mnem}
+        return AlgoUser(private_key, address, mnem)
 
     #
     def get_application_id(self, tx_id: str) -> int:
@@ -239,7 +250,7 @@ class Algorand:
         return tx_id
 
     #
-    def wait_for_transaction(self, tx_id: str) -> None:
+    def wait_for_confirmation(self, tx_id: str) -> None:
         """
         Block until a pending transaction is confirmed by the network
 
@@ -254,7 +265,8 @@ class Algorand:
                 self,
                 sender: str,
                 app_id: int,
-                app_args: list
+                app_args: list,
+                receiver: str=None
             ) -> Optional[ApplicationCallTxn]:
         """
         Create Application call transaction object
@@ -262,15 +274,18 @@ class Algorand:
         :param sender: sender address
         :param app_id: application id for which transaction is made
         :param app_args: arguments for application smart contract
+        :param receiver: receiver address
 
         :returns: ApplicationCallTxn objects
         """
+
         app_call_txn = transaction.ApplicationCallTxn(
             sender=sender,
             sp=self.params,
             index=app_id,
             on_complete=transaction.OnComplete.NoOpOC.real,
-            app_args=app_args
+            app_args=app_args,
+            accounts=[receiver]
         )
         return app_call_txn
 

@@ -1,8 +1,8 @@
-#pragma version 2
+#pragma version 5
 txn ApplicationID
 int 0
 ==
-bnz main_l10
+bnz main_l8
 txna ApplicationArgs 0
 byte "commit"
 ==
@@ -10,16 +10,58 @@ bnz main_l7
 txna ApplicationArgs 0
 byte "lock"
 ==
-bnz main_l4
+bnz main_l6
+txna ApplicationArgs 0
+byte "claim"
+==
+bnz main_l5
 err
-main_l4:
-byte "user"
+main_l5:
+byte "bob"
 app_global_get
 txn Sender
 ==
-bnz main_l6
-err
+assert
+txna ApplicationArgs 1
+sha256
+byte "hashlock"
+app_global_get
+==
+assert
+itxn_begin
+int pay
+itxn_field TypeEnum
+byte "committed_amount"
+app_global_get
+itxn_field Amount
+txn Sender
+itxn_field Receiver
+itxn_submit
+byte "committed_amount"
+int 0
+app_global_put
+int 1
+return
 main_l6:
+byte "alice"
+app_global_get
+txn Sender
+==
+assert
+byte "committed_amount"
+app_global_get
+int 0
+>
+assert
+itxn_begin
+int pay
+itxn_field TypeEnum
+byte "committed_amount"
+app_global_get
+itxn_field Amount
+global CurrentApplicationAddress
+itxn_field Receiver
+itxn_submit
 byte "hashlock"
 txna ApplicationArgs 1
 app_global_put
@@ -30,9 +72,7 @@ byte "committed_amount"
 app_global_get
 int 0
 ==
-bnz main_l9
-err
-main_l9:
+assert
 byte "committed_amount"
 txna ApplicationArgs 1
 btoi
@@ -40,11 +80,14 @@ app_global_put
 byte "lock_timestamp"
 txn LastValid
 app_global_put
-byte "user"
+byte "alice"
 txn Sender
+app_global_put
+byte "bob"
+txna Accounts 1
 app_global_put
 int 1
 return
-main_l10:
+main_l8:
 int 1
 return
