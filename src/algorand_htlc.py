@@ -35,28 +35,35 @@ class AlgorandHTLC(Algorand):
 
         approval_teal, clear_teal = teal_manager.deploy_contract(self.client)
 
-        txn = self.create_application_transaction(sender.address, approval_teal, clear_teal)
-        
+        txn = self.create_application_transaction(
+                    sender.address,
+                    approval_teal,
+                    clear_teal
+                )
+
         signed_txn = self.sign_transaction(sender.pk, txn)
         tx_id = self.send_transaction(signed_txn)
-        
+
         self.wait_for_confirmation(tx_id)
 
         app_id = self.get_application_id(tx_id)
         app_address = self.get_application_address(app_id)
 
-
         app_args = [b"commit", (amount).to_bytes(8, 'big')]
-        
-        txn = self.call_application_transaction(sender.address, app_id, app_args, receiver.address)
+
+        txn = self.call_application_transaction(
+                    sender.address,
+                    app_id,
+                    app_args,
+                    receiver.address
+                )
 
         signed_txn = self.sign_transaction(sender.pk, txn)
         tx_id = self.send_transaction(signed_txn)
-        
+
         self.wait_for_confirmation(tx_id)
 
         return app_id, app_address
-
 
     #
     def lock_commitment(
@@ -80,9 +87,19 @@ class AlgorandHTLC(Algorand):
 
         app_args = [b"lock", hashlock]
 
-        app_txn = self.call_application_transaction(sender.address, app_id, app_args, receiver)
-        pmt_txn = self.build_payment_transaction(sender.address, self.get_application_address(app_id), amount, "Lock Commitment")
-        
+        app_txn = self.call_application_transaction(
+                    sender.address,
+                    app_id,
+                    app_args,
+                    receiver
+                )
+        pmt_txn = self.build_payment_transaction(
+                    sender.address,
+                    self.get_application_address(app_id),
+                    amount,
+                    "Lock Commitment"
+                )
+
         signed_app_txn = self.sign_transaction(sender.pk, app_txn)
         signed_pmt_txn = self.sign_transaction(sender.pk, pmt_txn)
 
@@ -91,8 +108,6 @@ class AlgorandHTLC(Algorand):
 
         self.wait_for_confirmation(app_txn_id)
         self.wait_for_confirmation(pmt_txn_id)
-
-
 
     #
     def lock(
@@ -128,12 +143,17 @@ class AlgorandHTLC(Algorand):
         state = self.get_application_global_state(app_id)
         print("I Global State after locking:", state)
         return state
-    
+
     #
     def redeem(self, sender, app_id, secret, receiver):
         # 3d. Bob Claims the Funds
         app_args = [b"claim", secret]
-        txn = self.call_application_transaction(sender.address, app_id, app_args, receiver.address)
+        txn = self.call_application_transaction(
+                    sender.address,
+                    app_id,
+                    app_args,
+                    receiver.address
+                )
         signed_txn = self.sign_transaction(sender.pk, txn)
         tx_id = self.send_transaction(signed_txn)
         print(f"Claim Transaction ID: {tx_id}")

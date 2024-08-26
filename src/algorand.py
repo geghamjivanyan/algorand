@@ -20,7 +20,12 @@ class AlgoUser:
     mnemonic: float
 
     def __str__(self):
-        return "Private Key - {}\nAddress - {}\nMnemonic - {}".format(self.pk, self.address, self.mnemonic)
+        return "Private Key - {}\nAddress - {}\nMnemonic - {}".format(
+                    self.pk,
+                    self.address,
+                    self.mnemonic
+                )
+
 
 #
 class Algorand:
@@ -116,7 +121,7 @@ class Algorand:
 
         :returns: amount balance
         """
-        return self.client.account_info(address)#.get("amount")
+        return self.client.account_info(address).get("amount")
 
     #
     def get_transaction_info(self, tx_id: str):
@@ -266,7 +271,7 @@ class Algorand:
                 sender: str,
                 app_id: int,
                 app_args: list,
-                receiver: str=None
+                receiver: str
             ) -> Optional[ApplicationCallTxn]:
         """
         Create Application call transaction object

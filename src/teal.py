@@ -6,7 +6,7 @@ from typing import Optional
 #
 from pyteal import And, Cond, Expr, Assert, App, Txn, Mode
 from pyteal import Bytes, Int, Approve, Return, Btoi
-from pyteal import Arg, Sha256, Addr, Seq, Or, Global
+from pyteal import Sha256, Addr, Seq, Or, Global
 from pyteal import compileTeal, InnerTxnBuilder, TxnField, TxnType
 
 #
@@ -99,52 +99,52 @@ class TealManager:
         lock_timestamp_key = Bytes("lock_timestamp")
         alice_key = Bytes("alice")
         bob_key = Bytes("bob")
-        hashlock_key = Bytes("hashlock")
+        hashlock = Bytes("hashlock")
 
         # Step 1: Alice commits funds for Bob without the hashlock
         on_commit = Seq([
-            Assert(App.globalGet(committed_amount_key) == Int(0)),  # Ensure no previous commitment
-            App.globalPut(committed_amount_key, Btoi(Txn.application_args[1])),  # Store committed amount
-            App.globalPut(lock_timestamp_key, Txn.last_valid()),  # Record commitment timestamp
-            App.globalPut(alice_key, Txn.sender()),  # Store Alice's address
-            App.globalPut(bob_key, Txn.accounts[1]),  # Store Bob's address
+            Assert(App.globalGet(committed_amount_key) == Int(0)),
+            App.globalPut(committed_amount_key, Btoi(Txn.application_args[1])),
+            App.globalPut(lock_timestamp_key, Txn.last_valid()),
+            App.globalPut(alice_key, Txn.sender()),
+            App.globalPut(bob_key, Txn.accounts[1]),
             Return(Int(1))
         ])
 
-        # Step 2: Lock the commitment by providing the hashlock and transferring funds
+        # Step 2: Lock commitment by providing hashlock and transferring funds
         on_lock = Seq([
-            Assert(App.globalGet(alice_key) == Txn.sender()),  # Ensure only Alice can lock the funds
-            Assert(App.globalGet(committed_amount_key) > Int(0)),  # Ensure there's an amount committed
-            InnerTxnBuilder.Begin(),  # Start inner transaction to transfer funds to the smart contract
+            Assert(App.globalGet(alice_key) == Txn.sender()),
+            Assert(App.globalGet(committed_amount_key) > Int(0)),
+            InnerTxnBuilder.Begin(),
             InnerTxnBuilder.SetFields({
                 TxnField.type_enum: TxnType.Payment,
                 TxnField.amount: App.globalGet(committed_amount_key),
-                TxnField.receiver: Global.current_application_address(),  # Transfer to the smart contract address
+                TxnField.receiver: Global.current_application_address(),
             }),
             InnerTxnBuilder.Submit(),
-            App.globalPut(hashlock_key, Txn.application_args[1]),  # Store the hashlock (hash of the secret)
+            App.globalPut(hashlock, Txn.application_args[1]),
             Return(Int(1))
         ])
-        # Step 3: Bob claims the committed funds by providing the correct preimage
+        # Step 3: Bob claims committed funds by providing the correct preimage
         on_claim = Seq([
-            Assert(App.globalGet(bob_key) == Txn.sender()),  # Ensure only Bob can claim the funds
-            Assert(Sha256(Txn.application_args[1]) == App.globalGet(hashlock_key)),  # Verify the preimage matches the hashlock
-            InnerTxnBuilder.Begin(),  # Start inner transaction to transfer funds to Bob
+            Assert(App.globalGet(bob_key) == Txn.sender()),
+            Assert(Sha256(Txn.application_args[1]) == App.globalGet(hashlock)),
+            InnerTxnBuilder.Begin(),
             InnerTxnBuilder.SetFields({
                 TxnField.type_enum: TxnType.Payment,
                 TxnField.amount: App.globalGet(committed_amount_key),
-                TxnField.receiver: Txn.sender(),  # Send funds to Bob
+                TxnField.receiver: Txn.sender(),
             }),
             InnerTxnBuilder.Submit(),
-            App.globalPut(committed_amount_key, Int(0)),  # Reset committed amount after transfer
+            App.globalPut(committed_amount_key, Int(0)),
             Return(Int(1))
         ])
 
         program = Cond(
-            [Txn.application_id() == Int(0), Approve()],  # NoOp on creation
-            [Txn.application_args[0] == Bytes("commit"), on_commit],  # Commit funds
-            [Txn.application_args[0] == Bytes("lock"), on_lock],  # Lock funds with hashlock
-            [Txn.application_args[0] == Bytes("claim"), on_claim]  # Bob claims the funds
+            [Txn.application_id() == Int(0), Approve()],
+            [Txn.application_args[0] == Bytes("commit"), on_commit],
+            [Txn.application_args[0] == Bytes("lock"), on_lock],
+            [Txn.application_args[0] == Bytes("claim"), on_claim]
         )
 
         return program
@@ -157,12 +157,12 @@ class TealManager:
 
         return compiled_teal, clear_teal
 
-
+    #
     @staticmethod
     def lock_contract(
                 receiver: str,
                 lock_time: int,
-                hash_of_secret: str
+                hashlock: str
             ) -> Optional[And]:
         """
         PyTeal code for lock smart contract.
@@ -176,13 +176,13 @@ class TealManager:
         )
 
         after_lock_time = Txn.first_valid() > Int(lock_time)
-        correct_secret_provided = Sha256(Txn.application_args[0]) == Bytes(hash_of_secret)
+        secret_provided = Sha256(Txn.application_args[0]) == Bytes(hashlock)
 
         return And(
             is_payment_to_receiver,
             Or(
                 after_lock_time,
-                correct_secret_provided
+                secret_provided
             )
         )
 
