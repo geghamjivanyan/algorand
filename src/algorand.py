@@ -263,7 +263,7 @@ class Algorand:
 
         :returns None
         """
-        transaction.wait_for_confirmation(self.client, tx_id, 4)
+        return transaction.wait_for_confirmation(self.client, tx_id, 4)
 
     #
     def call_application_transaction(
@@ -271,7 +271,46 @@ class Algorand:
                 sender: str,
                 app_id: int,
                 app_args: list,
-                receiver: str
+                receiver: str=None,
+                asset: int=None
+            ) -> Optional[ApplicationCallTxn]:
+        """
+        Create Application call transaction object
+
+        :param sender: sender address
+        :param app_id: application id for which transaction is made
+        :param app_args: arguments for application smart contract
+        :param receiver: receiver address
+
+        :returns: ApplicationCallTxn objects
+        """
+
+        accounts = []
+        if receiver:
+            accounts.append(receiver)
+
+        assets = []
+        if asset:
+            assets.append(asset)
+        
+        app_call_txn = transaction.ApplicationCallTxn(
+            sender=sender,
+            sp=self.params,
+            index=app_id,
+            on_complete=transaction.OnComplete.NoOpOC.real,
+            app_args=app_args,
+            accounts=accounts,
+            foreign_assets=assets
+        )
+        return app_call_txn
+
+    #
+    def call_application_transaction_foreign_asset(
+                self,
+                sender: str,
+                app_id: int,
+                app_args: list,
+                asset_id: str=None
             ) -> Optional[ApplicationCallTxn]:
         """
         Create Application call transaction object
@@ -285,15 +324,66 @@ class Algorand:
         """
 
         app_call_txn = transaction.ApplicationCallTxn(
-            sender=sender,
+            sender=sender.address,
             sp=self.params,
             index=app_id,
             on_complete=transaction.OnComplete.NoOpOC.real,
             app_args=app_args,
-            accounts=[receiver]
+            foreign_assets=[asset_id]
         )
         return app_call_txn
+    #
+    def create_application_no_op_transaction(self, sender, app_id, app_args, receiver=None):
+        accounts = []
+        if receiver:
+            accounts.append(receiver.address)
+        
+        txn = transaction.ApplicationNoOpTxn(
+                sender=sender.address,
+                sp=self.params,
+                index=app_id,
+                app_args=app_args,
+                accounts=accounts
+        )
 
+        return txn
+
+    #
+    def create_asset(self, creator):
+        txn = transaction.AssetConfigTxn(
+                sender=creator.address,
+                sp=self.params,
+                total=1000000,
+                default_frozen=False,
+                unit_name="LSCOIN",
+                asset_name="LS Coin",
+                manager=creator.address,
+                reserve=creator.address,
+                freeze=creator.address,
+                clawback=creator.address,
+                decimals=0
+        )
+        signed_txn = self.sign_transaction(creator.pk, txn)
+        tx_id = self.send_transaction(signed_txn)
+        self.wait_for_confirmation(tx_id)
+        response = self.client.pending_transaction_info(tx_id)
+        return response['asset-index']
+
+    #
+    def opt_in_to_asset(self, sender, asset_id):
+        txn = transaction.AssetTransferTxn(
+                sender=sender.address,
+                sp=self.params,
+                receiver=sender.address,
+                amt=0,
+                index=asset_id
+            )
+        signed_txn = self.sign_transaction(sender.pk, txn)
+        tx_id = self.send_transaction(signed_txn)
+        self.wait_for_confirmation(tx_id)
+
+
+    
     #
     def get_application_global_state(self, app_id: int) -> dict:
         """
@@ -301,7 +391,7 @@ class Algorand:
 
         :param app_id: application id
 
-        :returns: info about applicatioj global state
+        :returns: info about application global state
         """
         app_info = self.client.application_info(app_id)
         global_state = app_info['params']['global-state']
@@ -309,6 +399,5 @@ class Algorand:
         for item in global_state:
             key = base64.b64decode(item['key']).decode('utf-8')
             value = item['value']
-            if key == "committed_amount":
-                state[key] = value["uint"]
+            state[key] = value
         return state

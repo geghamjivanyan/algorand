@@ -2,11 +2,11 @@
 from typing import Optional
 
 #
-from algorand import Algorand
+from algorand import Algorand, AlgoUser
 
 #
 from teal import TealManager
-
+from utils import fill_smart_contract_balance
 
 #
 class AlgorandHTLC(Algorand):
@@ -33,7 +33,7 @@ class AlgorandHTLC(Algorand):
         :returns: application id
         """
 
-        approval_teal, clear_teal = teal_manager.deploy_contract(self.client)
+        approval_teal, clear_teal = teal_manager.deploy_contract(self.client, 'commit')
 
         txn = self.create_application_transaction(
                     sender.address,
@@ -68,7 +68,7 @@ class AlgorandHTLC(Algorand):
     #
     def lock_commitment(
                 self,
-                sender: dict,
+                sender: Optional[AlgoUser],
                 app_id: int,
                 amount: int,
                 hashlock: str,
@@ -109,51 +109,54 @@ class AlgorandHTLC(Algorand):
         self.wait_for_confirmation(app_txn_id)
         self.wait_for_confirmation(pmt_txn_id)
 
+        
     #
-    def lock(
-                self,
-                sender: dict,
-                hash_of_secret: str,
-                app_id: int
-            ) -> str:
-        """
-        Lock fund
-
-        :param teal_manager: object for interacting with teal contracts
-        :param receiver: receiver account info
-        :param timelock: timelock for accepting lock
-        :param hash_of_secret: hash of secret
-        :param sender: sender account info
-        :param amount: amount which should be locked
-
-        :returns: transaction id
-        """
-
-        app_args = [b"claim", hash_of_secret]
-        app_call_txn = self.call_application_transaction(
-            sender["address"],
-            app_id,
-            app_args=app_args
-        )
-
-        signed_txn = self.sign_transaction(sender["pk"], app_call_txn)
-        tx_id = self.send_transaction(signed_txn)
-        self.wait_for_transaction(tx_id)
-        print(f"I Lock Transaction ID: {tx_id}")
-        state = self.get_application_global_state(app_id)
-        print("I Global State after locking:", state)
-        return state
-
-    #
-    def redeem(self, sender, app_id, secret, receiver):
+    def redeem(self, sender, app_id, secret):
         # 3d. Bob Claims the Funds
         app_args = [b"claim", secret]
         txn = self.call_application_transaction(
                     sender.address,
                     app_id,
-                    app_args,
-                    receiver.address
+                    app_args
                 )
         signed_txn = self.sign_transaction(sender.pk, txn)
         tx_id = self.send_transaction(signed_txn)
         print(f"Claim Transaction ID: {tx_id}")
+
+    #
+    def create_new_asset(self, teal_manager, sender):
+
+        asset_id = self.create_asset(sender)
+        self.opt_in_to_asset(sender, asset_id)
+        
+        approval_teal, clear_teal = teal_manager.deploy_contract(self.client, 'lock_redeem_dest')
+        txn = self.create_application_transaction(sender.address, approval_teal, clear_teal)
+
+        signed_txn = self.sign_transaction(sender.pk, txn)
+        tx_id = self.send_transaction(signed_txn)
+        self.wait_for_confirmation(tx_id)
+        resp = self.client.pending_transaction_info(tx_id)
+
+        return resp['application-index'], asset_id
+
+    #
+    def lock_dest_chain(self, sender, app_id, asset_id, amount, hashlock, receiver):
+    
+        app_args=[b"lock", (amount).to_bytes(8, "big"), hashlock]
+        txn = self.call_application_transaction(sender.address, app_id, app_args, receiver.address, asset_id)
+    
+        signed_txn = self.sign_transaction(sender.pk, txn)
+        tx_id = self.send_transaction(signed_txn)
+        self.wait_for_confirmation(tx_id)
+        print(f"Locked {amount} tokens for Bob in application {app_id}")
+
+    #
+    def redeem_dest(self, receiver, app_id, secret):
+        
+        app_args=[b"redeem", secret]
+    
+        txn = self.call_application_transaction(receiver.address, app_id, app_args)
+        signed_txn = self.sign_transaction(receiver.pk, txn)
+        tx_id = self.send_transaction(signed_txn)
+        self.wait_for_confirmation(tx_id)
+        print(f"Redeemed tokens in application {app_id}")

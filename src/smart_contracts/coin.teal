@@ -1,0 +1,97 @@
+#pragma version 5
+txn ApplicationID
+int 0
+==
+bnz main_l8
+txna ApplicationArgs 0
+byte "create_asa"
+==
+bnz main_l7
+txna ApplicationArgs 0
+byte "exchange"
+==
+bnz main_l6
+txn OnCompletion
+int OptIn
+==
+bnz main_l5
+err
+main_l5:
+int 1
+return
+main_l6:
+txn NumAppArgs
+int 2
+==
+assert
+txna ApplicationArgs 1
+btoi
+int 0
+>
+assert
+byte "Exchange Initiated"
+log
+itxn_begin
+int pay
+itxn_field TypeEnum
+txna ApplicationArgs 1
+btoi
+byte "exchange_rate"
+app_global_get
+*
+itxn_field Amount
+txn Sender
+itxn_field Receiver
+itxn_submit
+byte "ALGO sent"
+log
+itxn_begin
+int axfer
+itxn_field TypeEnum
+byte "asa_id"
+app_global_get
+itxn_field XferAsset
+txna ApplicationArgs 1
+btoi
+itxn_field AssetAmount
+txn Sender
+itxn_field AssetReceiver
+itxn_submit
+byte "Asset transferred"
+log
+int 1
+return
+main_l7:
+txn Sender
+byte "creator"
+app_global_get
+==
+assert
+itxn_begin
+int acfg
+itxn_field TypeEnum
+int 1000000
+itxn_field ConfigAssetTotal
+int 0
+itxn_field ConfigAssetDecimals
+byte "LSCOIN"
+itxn_field ConfigAssetUnitName
+byte "LS Coin"
+itxn_field ConfigAssetName
+txn Sender
+itxn_field ConfigAssetManager
+itxn_submit
+byte "asa_id"
+itxn CreatedAssetID
+app_global_put
+int 1
+return
+main_l8:
+byte "creator"
+txn Sender
+app_global_put
+byte "exchange_rate"
+int 100
+app_global_put
+int 1
+return

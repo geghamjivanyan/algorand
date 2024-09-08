@@ -1,0 +1,52 @@
+#pragma version 5
+txn ApplicationID
+int 0
+==
+bnz main_l6
+txna ApplicationArgs 0
+byte "lock"
+==
+bnz main_l5
+txna ApplicationArgs 0
+byte "redeem"
+==
+bnz main_l4
+err
+main_l4:
+byte "committed_amount"
+app_global_get
+int 0
+>
+assert
+txna ApplicationArgs 1
+sha256
+byte "hashlock"
+app_global_get
+==
+assert
+byte "committed_amount"
+int 0
+app_global_put
+int 1
+return
+main_l5:
+byte "committed_amount"
+app_global_get
+int 0
+==
+assert
+byte "receiver"
+txna Accounts 1
+app_global_put
+byte "committed_amount"
+txna ApplicationArgs 1
+btoi
+app_global_put
+byte "hashlock"
+txna ApplicationArgs 2
+app_global_put
+int 1
+return
+main_l6:
+int 1
+return

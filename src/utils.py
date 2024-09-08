@@ -1,8 +1,9 @@
 from algorand import AlgoUser
 
+# alice account on main chain
 alice = {
     "pk": (
-            "d/TdnjyUOs1dT8Aha3F7Hk+o0B/lQI+UNKtJxyCk3KiZ5"
+            "d/TdnjyUOs1dT8Aha3F7Hk+o0B/lQI+UNKtJxyCk3KZ5"
             "WmCGxUY7qyjv9an2vlng/B5UoibVSlL2CQ4gt7q/sA=="
         ),
     "address": "PFNGBBWFIY52WKHP6WU7NPSZ4D6B4VFCE3KUUUXWBEHCBN52X6YJG5FWAI",
@@ -15,6 +16,7 @@ alice = {
         )
 }
 
+# bob account on main chain
 bob = {
     "pk": (
             "WTBsLqfDC75q8T7LaexoVwkx7uuSK6aM/XhHDhZZNGTO"
@@ -30,7 +32,24 @@ bob = {
         )
 }
 
-john = {
+# bob account on destination chain
+bob_dest = {
+    "pk": (
+            "474UeIayx/e52aSyrw2zqOai+MzPMn5cKBMXuXKohYLN"
+            "s3izvxqAu4gofYiDLu+0RIQkxnrv/kh+VaeJErYkew=="
+        ),
+    "address": "ZWZXRM57DKALXCBIPWEIGLXPWRCIIJGGPLX74SD6KWTYSEVWER5SGYT2OM",
+    "mnemonic": (
+            "symbol fancy despair chronic month"
+            " law soccer pill wagon cute"
+            " flower hedgehog easy dilemma lazy"
+            " crazy more pause maze multiply"
+            " tornado head before above reopen"
+        )
+}
+
+# alice account on destination chain
+alice_dest = {
     "pk": (
             "XD4ECg7pQxVPTyv2KAWYZUse2sQjSxyWcOvThZ1oDwb/"
             "QqBsoMRAIdCXMyQQvpAajkyJ1l0CqROSTuNkyMeLTg=="
@@ -48,7 +67,8 @@ john = {
 users = {
     "alice": alice,
     "bob": bob,
-    "john": john
+    "alice_dest": alice_dest,
+    "bob_dest": bob_dest
 }
 
 
@@ -56,3 +76,21 @@ users = {
 def get_user(name):
     user = users[name]
     return AlgoUser(user["pk"], user["address"], user["mnemonic"])
+
+#
+def show_logs():
+
+    with open('prehtlc.log', 'r') as f:
+        info = f.readlines()
+    for r in info:
+        print(r)
+
+
+#
+def fill_smart_contract_balance(htlc, sender, receiver, amount):
+    txn = htlc.build_payment_transaction(sender.address, receiver, amount, "Fill Balance")
+    signed_txn = htlc.sign_transaction(sender.pk, txn)
+    tx_id = htlc.send_transaction(signed_txn)
+    htlc.wait_for_confirmation(tx_id)
+
+

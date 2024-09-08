@@ -5,9 +5,9 @@ from typing import Optional
 
 #
 from pyteal import And, Cond, Expr, Assert, App, Txn, Mode
-from pyteal import Bytes, Int, Approve, Return, Btoi
-from pyteal import Sha256, Addr, Seq, Or, Global
-from pyteal import compileTeal, InnerTxnBuilder, TxnField, TxnType
+from pyteal import Bytes, Int, Approve, Return, Btoi, Log
+from pyteal import Sha256, Addr, Seq, Or, Global, OnComplete
+from pyteal import compileTeal, InnerTxnBuilder, TxnField, TxnType, InnerTxn
 
 #
 from algosdk.v2client.algod import AlgodClient
@@ -149,47 +149,102 @@ class TealManager:
 
         return program
 
-    def deploy_contract(self, client):
-        teal_code = self.compile_teal_file(self.commit())
-        self.save_teal_to_file(teal_code, 'commit.teal')
-        compiled_teal = self.compile_teal_code(client, "commit.teal")
+    #
+    @staticmethod
+    def lock() -> Optional[Cond]:
+        """
+        PyTeal code for locking funds with a hashlock to a specified receiver and redeeming them to a different specified address.
+
+        :returns: pyteal.Expr value
+        """
+
+        committed_amount_key = Bytes("committed_amount")
+        hashlock_key = Bytes("hashlock")
+        alice_key = Bytes("alice")
+        receiver_key = Bytes("receiver")
+
+        # Step 1: Lock funds by providing the hashlock and specifying the receiver
+        on_lock = Seq([
+            Assert(App.globalGet(committed_amount_key) == Int(0)),  # Ensure no funds are currently locked
+            Assert(App.globalGet(receiver_key) == Txn.accounts[0]),  # Ensure the specified receiver is valid
+            App.globalPut(committed_amount_key, Btoi(Txn.application_args[1])),
+            App.globalPut(hashlock_key, Txn.application_args[2]),  # Store the hashlock
+            InnerTxnBuilder.Begin(),
+            InnerTxnBuilder.SetFields({
+                TxnField.type_enum: TxnType.Payment,
+                TxnField.amount: App.globalGet(committed_amount_key),
+                TxnField.receiver: App.globalGet(receiver_key),  # Transfer to the specified receiver
+            }),
+            InnerTxnBuilder.Submit(),
+            Return(Int(1))
+        ])
+
+        # Step 2: Redeem funds by providing the correct preimage
+        on_redeem = Seq([
+            Assert(App.globalGet(committed_amount_key) > Int(0)),  # Ensure funds are locked
+            Assert(Sha256(Txn.application_args[1]) == App.globalGet(hashlock_key)),  # Verify the preimage
+            InnerTxnBuilder.Begin(),
+            InnerTxnBuilder.SetFields({
+                TxnField.type_enum: TxnType.Payment,
+                TxnField.amount: App.globalGet(committed_amount_key),
+                TxnField.receiver: Txn.sender(),  # Send funds to the redeemer
+            }),
+            InnerTxnBuilder.Submit(),
+            App.globalPut(committed_amount_key, Int(0)),  # Reset the committed amount
+            Return(Int(1))
+        ])
+
+        program = Cond(
+            [Txn.application_id() == Int(0), Approve()],
+            [Txn.application_args[0] == Bytes("lock"), on_lock],
+            [Txn.application_args[0] == Bytes("redeem"), on_redeem]
+        )
+
+        return program 
+    
+
+    # redeem on simulated destination chain. This is not part of protocol
+    # redeem on simulated destination chain. This is not part of protocol
+    @staticmethod
+    def lock_redeem_dest():
+        asset_id_key = Bytes("asset_id")
+        committed_amount_key = Bytes("committed_amount")
+        hashlock_key = Bytes("hashlock")
+        receiver_key = Bytes("receiver")
+
+        # Lock funds logic
+        on_lock = Seq([
+            Assert(App.globalGet(committed_amount_key) == Int(0)),
+            App.globalPut(receiver_key, Txn.accounts[1]),
+            App.globalPut(committed_amount_key, Btoi(Txn.application_args[1])),
+            App.globalPut(hashlock_key, Txn.application_args[2]),
+            Return(Int(1))
+        ])
+
+        # Redeem funds logic
+        on_redeem = Seq([
+            Assert(App.globalGet(committed_amount_key) > Int(0)),
+            Assert(Sha256(Txn.application_args[1]) == App.globalGet(hashlock_key)),
+            App.globalPut(committed_amount_key, Int(0)),
+            Return(Int(1))
+        ])
+
+        program = Cond(
+            [Txn.application_id() == Int(0), Approve()],
+            [Txn.application_args[0] == Bytes("lock"), on_lock],
+            [Txn.application_args[0] == Bytes("redeem"), on_redeem]
+        )
+
+        return program
+
+    #
+    def deploy_contract(self, client, contract):
+        teal_code = self.compile_teal_file(TealManager.__dict__[contract]())
+        self.save_teal_to_file(teal_code, '{}.teal'.format(contract))
+        compiled_teal = self.compile_teal_code(client, "{}.teal".format(contract))
         clear_teal = self.compile_teal_code(client, "clear.teal")
 
         return compiled_teal, clear_teal
-
-    #
-    @staticmethod
-    def lock_contract(
-                receiver: str,
-                lock_time: int,
-                hashlock: str
-            ) -> Optional[And]:
-        """
-        PyTeal code for lock smart contract.
-
-        :returns: pyteal.And value
-
-        """
-        is_payment_to_receiver = And(
-            Txn.receiver() == Addr(receiver),
-            Txn.amount() > Int(0),
-        )
-
-        after_lock_time = Txn.first_valid() > Int(lock_time)
-        secret_provided = Sha256(Txn.application_args[0]) == Bytes(hashlock)
-
-        return And(
-            is_payment_to_receiver,
-            Or(
-                after_lock_time,
-                secret_provided
-            )
-        )
-
-    #
-    @staticmethod
-    def redeem(self):
-        pass
 
     #
     @staticmethod
